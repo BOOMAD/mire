@@ -15,9 +15,10 @@
   "Get a description of the surrounding environs and its contents."
   []
   (str (:desc @player/*current-room*)
-       "\nExits: " (keys @(:exits @player/*current-room*)) "\n"
-       (str/join "\n" (map #(str "There is " % " here.\n")
-                           @(:items @player/*current-room*)))))
+       "\nExits: " (keys @(:exits @player/*current-room*))
+       (str/join (map #(str "\nThere is " % " here.") @(:items @player/*current-room*))) 
+       (str/join (map #(str "\n" % ) (disj @(:inhabitants @player/*current-room*) player/*name*))) "\n"))
+
 
 (defn move
   "\"♬ We gotta get out of this place... ♪\" Give a direction."
@@ -75,13 +76,24 @@
 (defn say
   "Say something out loud so everyone in the room can hear."
   [& words]
+   (let [message (str/join " " words)]
+     (doseq [inhabitant (disj @(:inhabitants @player/*current-room*)
+                              player/*name*)]
+       (binding [*out* (player/streams inhabitant)]
+         (println message)
+         (println player/prompt)))
+     (str "You said " message))
+  )
+(defn whisper
+  "Whisper something to anyone in the room."
+  [name & words]
   (let [message (str/join " " words)]
-    (doseq [inhabitant (disj @(:inhabitants @player/*current-room*)
-                             player/*name*)]
+    (let [inhabitant (get @(:inhabitants @player/*current-room*) name)]
       (binding [*out* (player/streams inhabitant)]
         (println message)
-        (println player/prompt)))
-    (str "You said " message)))
+        (print player/prompt)))
+    (str "You said " message))
+  )
 
 (defn help
   "Show available commands and what they do."
@@ -89,7 +101,12 @@
   (str/join "\n" (map #(str (key %) ": " (:doc (meta (val %))))
                       (dissoc (ns-publics 'mire.commands)
                               'execute 'commands))))
-
+  
+(defn lobby
+  "Show players in the labyrinth"
+  []
+  (str/join "\n" (map first @player/streams)))
+  
 ;; Command data
 
 (def commands {"move" move,
@@ -97,12 +114,14 @@
                "south" (fn [] (move :south)),
                "east" (fn [] (move :east)),
                "west" (fn [] (move :west)),
+               "lobby" lobby
                "grab" grab
                "discard" discard
                "inventory" inventory
                "detect" detect
                "look" look
                "say" say
+               "whisper" whisper
                "help" help})
 
 ;; Command handling
